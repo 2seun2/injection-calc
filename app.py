@@ -98,4 +98,10 @@ with right_col:
             
             # 엑셀 다운로드 버튼 추가
             csv = df.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("💾 결과 다운로드 (CSV)", csv, "injection_results.csv", "
+            st.download_button("💾 결과 다운로드 (CSV)", csv, "injection_results.csv", "text/csv")
+        else:
+            st.write("입력된 데이터가 없습니다.")
+
+# 푸터
+st.markdown("---")
+st.caption("사출 공정 효율화를 위한 게이트 타임 자동 계산기")
