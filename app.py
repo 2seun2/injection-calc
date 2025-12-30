@@ -1,135 +1,101 @@
-import tkinter as tk
-from tkinter import messagebox, ttk
+import streamlit as st
+import pandas as pd
 
-class InjectionValidatorDemo:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("사출 게이트 계산기 - 입력 오류 감지 시스템")
-        self.root.geometry("1150x850")
-        self.root.configure(bg="#f8f9fa")
+# 페이지 설정 (전체 화면 사용 및 타이틀)
+st.set_page_config(page_title="사출 게이트 계산기", layout="wide")
 
-        # --- 1. 상단 기본 설정 ---
-        top_frame = tk.LabelFrame(root, text=" 1. 사출 공정 기본 설정 ", padx=20, pady=15, font=("Malgun Gothic", 11, "bold"))
-        top_frame.pack(fill="x", padx=20, pady=10)
+st.title("⚙️ 사출 게이트 제어 시간 계산기 (60 Gates)")
+st.info("오픈 위치는 클로즈 위치보다 커야 합니다. 오류 시 입력창이 붉게 표시됩니다.")
 
-        self.start_pos = tk.StringVar(value="150")
-        self.vp_pos = tk.StringVar(value="20")
-        self.inj_time = tk.StringVar(value="3.5")
+# --- 1. 상단 기본 설정 영역 ---
+with st.container():
+    st.subheader("📍 1. 사출 기본 조건")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        start_pos = st.number_input("계량 완료 위치 (mm)", value=150.0, step=0.1)
+    with c2:
+        vp_pos = st.number_input("V-P 절환 위치 (mm)", value=20.0, step=0.1)
+    with c3:
+        inj_time = st.number_input("실제 사출 시간 (sec)", value=3.5, step=0.01)
 
-        tk.Label(top_frame, text="계량 완료(mm):").grid(row=0, column=0, padx=5)
-        tk.Entry(top_frame, textvariable=self.start_pos, width=10, justify='center').grid(row=0, column=1, padx=10)
-        tk.Label(top_frame, text="V-P 위치(mm):").grid(row=0, column=2, padx=5)
-        tk.Entry(top_frame, textvariable=self.vp_pos, width=10, justify='center').grid(row=0, column=3, padx=10)
-        tk.Label(top_frame, text="사출 시간(sec):").grid(row=0, column=4, padx=5)
-        tk.Entry(top_frame, textvariable=self.inj_time, width=10, justify='center').grid(row=0, column=5, padx=10)
+st.divider()
 
-        # --- 2. 메인 2분할 영역 ---
-        main_container = tk.Frame(root, bg="#f8f9fa")
-        main_container.pack(fill="both", expand=True, padx=20)
+# --- 2. 메인 화면 분할 (좌측: 입력 / 우측: 결과) ---
+left_col, right_col = st.columns([0.6, 0.4])
 
-        # [좌측] 입력창
-        left_frame = tk.LabelFrame(main_container, text=" 2. 입력 (Open > Close 필수) ", padx=10, pady=10, fg="blue", font=("Malgun Gothic", 11, "bold"))
-        left_frame.pack(side="left", fill="both", expand=True)
-
-        canvas = tk.Canvas(left_frame, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(left_frame, orient="vertical", command=canvas.yview)
-        self.scroll_frame = tk.Frame(canvas)
-        self.scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        self.gate_inputs = []
-        for i in range(60):
-            col_offset = (i // 30) * 3
-            row = i % 30
-            
-            f = tk.Frame(self.scroll_frame, pady=1)
-            f.grid(row=row, column=col_offset, padx=5)
-            
-            tk.Label(f, text=f"G{i+1:02d}", width=4).pack(side="left")
-            op_ent = tk.Entry(f, width=8, justify='center')
-            op_ent.pack(side="left", padx=2)
-            cl_ent = tk.Entry(f, width=8, justify='center')
-            cl_ent.pack(side="left", padx=2)
-            
-            # 실시간 검증을 위해 엔트리 저장
-            self.gate_inputs.append({'op': op_ent, 'cl': cl_ent, 'label': f"Gate {i+1}"})
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # [우측] 결과창
-        right_frame = tk.LabelFrame(main_container, text=" 3. 계산 결과 ", padx=10, pady=10, fg="green", font=("Malgun Gothic", 11, "bold"))
-        right_frame.pack(side="right", fill="both", padx=(10, 0))
-
-        cols = ("Gate", "Open(s)", "Close(s)", "Status")
-        self.result_tree = ttk.Treeview(right_frame, columns=cols, show="headings", height=25)
-        for col in cols:
-            self.result_tree.heading(col, text=col)
-            self.result_tree.column(col, width=90, anchor="center")
+with left_col:
+    st.subheader("📥 2. 게이트 위치 입력")
+    # 3열로 배치하여 60개를 콤팩트하게 보여줌
+    in_col1, in_col2, in_col3 = st.columns(3)
+    
+    gate_data = []
+    total_gates = 60
+    
+    for i in range(1, total_gates + 1):
+        # 20개씩 열 나누기
+        if i <= 20: target_col = in_col1
+        elif i <= 40: target_col = in_col2
+        else: target_col = in_col3
         
-        self.result_tree.pack(side="left", fill="both", expand=True)
-
-        # --- 3. 하단 버튼 ---
-        btn_frame = tk.Frame(root, pady=15)
-        btn_frame.pack(fill="x", padx=20)
-
-        tk.Button(btn_frame, text="모두 지우기", command=self.clear_all).pack(side="left")
-        tk.Button(btn_frame, text="데이터 검증 및 계산 실행", command=self.calculate, 
-                  bg="#007bff", fg="white", font=("Malgun Gothic", 12, "bold"), height=2).pack(side="right", fill="x", expand=True, padx=(20, 0))
-
-    def calculate(self):
-        try:
-            s = float(self.start_pos.get())
-            v = float(self.vp_pos.get())
-            t = float(self.inj_time.get())
-            dist = s - v
-
-            for item in self.result_tree.get_children():
-                self.result_tree.delete(item)
-
-            error_count = 0
-            for i, gate in enumerate(self.gate_inputs):
-                op_raw = gate['op'].get().strip()
-                cl_raw = gate['cl'].get().strip()
-
-                # 기본 배경색으로 초기화
-                gate['op'].config(bg="white")
-                gate['cl'].config(bg="white")
-
-                if op_raw and cl_raw:
-                    op_val = float(op_raw)
-                    cl_val = float(cl_raw)
-
-                    # 조건 검사: 오픈 위치 > 클로즈 위치여야 함 (사출은 전진하므로 숫자가 작아짐)
-                    if op_val <= cl_val:
-                        gate['op'].config(bg="#ffcccc") # 연빨강 배경
-                        gate['cl'].config(bg="#ffcccc")
-                        self.result_tree.insert("", "end", values=(f"G{i+1:02d}", "-", "-", "ERROR"), tags=('error',))
-                        error_count += 1
-                    else:
-                        t_open = (s - op_val) / dist * t
-                        t_close = (s - cl_val) / dist * t
-                        self.result_tree.insert("", "end", values=(f"G{i+1:02d}", f"{t_open:.3f}", f"{t_close:.3f}", "OK"))
-
-            self.result_tree.tag_configure('error', foreground='red')
+        with target_col:
+            g_c1, g_c2, g_c3 = st.columns([1, 2, 2])
+            g_c1.markdown(f"<br>**G{i:02d}**", unsafe_allow_html=True)
             
-            if error_count > 0:
-                messagebox.showwarning("입력 오류", f"{error_count}개의 게이트 설정이 잘못되었습니다.\n오픈 위치는 클로즈 위치보다 커야 합니다.")
+            # 입력값 받기
+            op = st.text_input(f"G{i} Open", key=f"op_{i}", label_visibility="collapsed", placeholder="Open")
+            cl = st.text_input(f"G{i} Close", key=f"cl_{i}", label_visibility="collapsed", placeholder="Close")
+            
+            # 오류 검증 로직
+            error = False
+            if op and cl:
+                try:
+                    if float(op) <= float(cl):
+                        error = True
+                        # CSS를 이용해 입력창 테두리를 빨간색으로 변경
+                        st.markdown(f"""
+                            <style>
+                            div[data-testid="stTextInput"] > div:nth-of-type(1) input[aria-label="G{i} Open"],
+                            div[data-testid="stTextInput"] > div:nth-of-type(1) input[aria-label="G{i} Close"] {{
+                                border: 2px solid red !important;
+                                background-color: #ffe6e6 !important;
+                            }}
+                            </style>
+                        """, unsafe_allow_html=True)
+                except ValueError:
+                    pass
+            
+            gate_data.append({"id": i, "op": op, "cl": cl, "error": error})
 
-        except ValueError:
-            messagebox.showerror("오류", "숫자 형식을 확인해 주세요.")
-
-    def clear_all(self):
-        for gate in self.gate_inputs:
-            gate['op'].delete(0, tk.END)
-            gate['cl'].delete(0, tk.END)
-            gate['op'].config(bg="white")
-            gate['cl'].config(bg="white")
-        for item in self.result_tree.get_children():
-            self.result_tree.delete(item)
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = InjectionValidatorDemo(root)
-    root.mainloop()
+with right_col:
+    st.subheader("📤 3. 계산 결과")
+    dist = start_pos - vp_pos
+    
+    if dist <= 0:
+        st.error("오류: 계량 완료 위치가 V-P 위치보다 커야 합니다.")
+    else:
+        results = []
+        for g in gate_data:
+            if g["op"] and g["cl"]:
+                if g["error"]:
+                    results.append({"Gate": f"G{g['id']:02d}", "Open(s)": "⚠️ERROR", "Close(s)": "⚠️ERROR", "Status": "Check Order"})
+                else:
+                    try:
+                        t_open = (start_pos - float(g["op"])) / dist * inj_time
+                        t_close = (start_pos - float(g["cl"])) / dist * inj_time
+                        results.append({
+                            "Gate": f"G{g['id']:02d}", 
+                            "Open(s)": round(t_open, 3), 
+                            "Close(s)": round(t_close, 3),
+                            "Status": "✅ OK"
+                        })
+                    except ValueError:
+                        continue
+        
+        if results:
+            df = pd.DataFrame(results)
+            # 상태에 따라 색상을 입힌 테이블 출력
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            
+            # 엑셀 다운로드 버튼 추가
+            csv = df.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("💾 결과 다운로드 (CSV)", csv, "injection_results.csv", "
